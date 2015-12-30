@@ -1126,6 +1126,7 @@ module.exports = function (server, config) {
 
       client.once('close', function () {
         should.exist(client.reconnectTimer);
+        client.end();
         done();
       });
     });
@@ -1181,6 +1182,7 @@ module.exports = function (server, config) {
 
       function check () {
         if (serverPublished && clientCalledBack) {
+          client.end();
           done();
         }
       }
@@ -1213,9 +1215,60 @@ module.exports = function (server, config) {
 
       function check () {
         if (serverPublished && clientCalledBack) {
+          client.end();
           done();
         }
       }
     });
+
+    it('should resubscribe to all topics on reconnecting', function (done) {
+      var client = connect({reconnectPeriod: 200});
+
+      server.once('client', function (serverClient) {
+        client.subscribe({a: 0, b: 1, c: 2}, function () {
+          setImmediate(function () {
+            serverClient.stream.destroy();
+          });
+        });
+
+        server.once('client', function (serverClientNew) {
+          serverClientNew.on('subscribe', function (packet) {
+            packet.subscriptions.should.eql([
+              {topic: 'a', qos: 0},
+              {topic: 'b', qos: 1},
+              {topic: 'c', qos: 2}
+            ]);
+            client.end();
+            done();
+          });
+        });
+      });
+    });
+
+    it('should only resubscribe to qos 0 topics on reconnecting when session present', function (done) {
+      var client = connect({reconnectPeriod: 200});
+
+      server.once('client', function (serverClient) {
+        client.subscribe({a: 0, b: 1, c: 2}, function () {
+          setImmediate(function () {
+            client.options.clean = true;
+            client.options.clientId = 'sessionPresent';
+
+            serverClient.stream.destroy();
+          });
+        });
+
+        server.once('client', function (serverClientNew) {
+          serverClientNew.on('subscribe', function (packet) {
+            packet.subscriptions.should.eql([
+              {topic: 'a', qos: 0}
+            ]);
+            client.end();
+            done();
+          });
+        });
+      });
+    });
+
   });
 };

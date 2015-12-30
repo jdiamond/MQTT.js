@@ -35,6 +35,8 @@ server.on('client', function (client) {
   client.on('connect', function (packet) {
     if ('invalid' === packet.clientId) {
       client.connack({returnCode: 2});
+    } else if ('sessionPresent' === packet.clientId) {
+      client.connack({returnCode: 0, sessionPresent: true});
     } else {
       server.emit('connect', client);
       client.connack({returnCode: 0});
